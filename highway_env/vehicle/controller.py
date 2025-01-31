@@ -1,5 +1,6 @@
 import copy
 from typing import List, Optional, Tuple, Union
+import time
 
 import numpy as np
 
@@ -46,6 +47,11 @@ class ControlledVehicle(Vehicle):
         self.target_lane_index = target_lane_index or self.lane_index
         self.target_speed = target_speed or self.speed
         self.route = route
+
+    """
+    A controlled vehicle with a delay in processing actions.
+    """
+    computation_cost = 0.1  # Default delay for computation (in seconds)
 
     @classmethod
     def create_from(cls, vehicle: "ControlledVehicle") -> "ControlledVehicle":

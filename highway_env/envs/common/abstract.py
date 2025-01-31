@@ -3,6 +3,7 @@ from __future__ import annotations
 import copy
 import os
 from typing import TypeVar
+import time
 
 import gymnasium as gym
 import numpy as np
@@ -30,7 +31,6 @@ class AbstractEnv(gym.Env):
     speed. The action space is fixed, but the observation space and reward function must be defined in the
     environment implementations.
     """
-
     observation_type: ObservationType
     action_type: ActionType
     _record_video_wrapper: RecordVideo | None
@@ -271,6 +271,11 @@ class AbstractEnv(gym.Env):
             self.road.act()
             self.road.step(1 / self.config["simulation_frequency"])
             self.steps += 1
+
+            # Introduce computational cost (delay)
+            # computation_cost = self.config.get("computation_cost", 0.0)  # Default is 0
+            # time.sleep(computation_cost)
+
 
             # Automatically render intermediate simulation steps if a viewer has been launched
             # Ignored if the rendering is done offscreen
