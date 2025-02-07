@@ -2,6 +2,7 @@ import os
 import sys
 
 from gymnasium.envs.registration import register
+from highway_env.envs.highway_env_v1 import HighwayEnvV1
 
 
 __version__ = "1.10.1"
@@ -34,6 +35,12 @@ def _register_highway_envs():
     register(
         id="highway-v0",
         entry_point="highway_env.envs.highway_env:HighwayEnv",
+    )
+
+    register(
+        id="highway-v1",
+        entry_point="highway_env.envs.highway_env_v1:HighwayEnvV1",
+        kwargs={"config": None, "render_mode": "rgb_array"},
     )
 
     register(

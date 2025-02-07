@@ -1,7 +1,5 @@
 from __future__ import annotations
-
 import numpy as np
-
 from highway_env import utils
 from highway_env.envs.common.abstract import AbstractEnv
 from highway_env.envs.common.action import Action
