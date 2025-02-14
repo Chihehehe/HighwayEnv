@@ -37,41 +37,33 @@ class HighwayEnvV1(AbstractEnv):
     @classmethod
     def default_config(cls) -> dict:
         config = super().default_config()
-        config.update({
-            "observation": {
-                "type": "Kinematics",
-                "features": ["presence", "x", "y", "vx", "vy", "heading"],
-                "vehicles_count": 15,
-                "features_range": {
-                    "x": [-100, 100],
-                    "y": [-100, 100],
-                    "vx": [-20, 20],
-                    "vy": [-20, 20]
+        config.update(
+            {
+                "observation": {"type": "Kinematics"},
+                "action": {
+                    "type": "DiscreteMetaAction",
                 },
-                "absolute": False
-            },
-            "action": {
-                "type": "ContinuousAction",
-                "steering_range": [-np.pi/3, np.pi/3],
-                "acceleration_range": [-5.0, 5.0],
-            },
-            "lanes_count": 4,
-            "vehicles_count": 20,  # Reduced from 50 for better initial learning
-            "controlled_vehicles": 1,
-            "initial_lane_id": None,
-            "duration": 40,
-            "ego_spacing": 2,
-            "vehicles_density": 0.7,  # Reduced from 1
-            "collision_reward": -1,
-            "right_lane_reward": 0.1,  # Reduced from 0.4
-            "high_speed_reward": 0.4,  # Reduced from 0.8
-            "lane_change_reward": -0.05,
-            "reward_speed_range": [10, 25],  # Modified from [15, 30]
-            "stopping_penalty": -0.5,  # Reduced from -2
-            "reverse_reward": -0.5,  # Modified from -1
-            "normalize_reward": True,
-            "offroad_terminal": True,  # Changed to True
-        })
+                "lanes_count": 4,
+                "vehicles_count": 50,
+                "controlled_vehicles": 1,
+                "initial_lane_id": None,
+                "duration": 40,  # [s]
+                "ego_spacing": 2,
+                "vehicles_density": 1,
+                "collision_reward": -1,  # The reward received when colliding with a vehicle.
+                "right_lane_reward": 0.4,
+                # The reward received when driving on the right-most lanes, linearly mapped to
+                # zero for other lanes.
+                "high_speed_reward": 0.8,  # The reward received when driving at full speed, linearly mapped to zero for
+                # lower speeds according to config["reward_speed_range"].
+                "lane_change_reward": 0,  # The reward received at each lane change action.
+                "reward_speed_range": [0, 30],
+                "stopping_penalty": -2,
+                "reverse_reward": -1,  # The reward received when moving backward
+                "normalize_reward": True,
+                "offroad_terminal": False,
+            }
+        )
         return config
     
 
@@ -111,8 +103,6 @@ class HighwayEnvV1(AbstractEnv):
     def _reset(self) -> None:
         self._create_road()
         self._create_vehicles()
-        if self.render_mode:
-            self.render()
 
     def _create_road(self) -> None:
         """Create a road composed of straight adjacent lanes."""
@@ -184,39 +174,42 @@ class HighwayEnvV1(AbstractEnv):
 
         return reward
 
-def _rewards(self, action: Action) -> Dict[Text, float]:
-    neighbours = self.road.network.all_side_lanes(self.vehicle.lane_index)
-    lane = self.vehicle.target_lane_index[2] if isinstance(self.vehicle, ControlledVehicle) else self.vehicle.lane_index[2]
-    
-    forward_speed = self.vehicle.speed * np.cos(self.vehicle.heading)
-    scaled_speed = utils.lmap(forward_speed, self.config["reward_speed_range"], [0, 1])
-    
-    # Smooth heading penalty
-    heading_penalty = -np.abs(self.vehicle.heading) / (0.5 * np.pi)
-    
-    # Smoother speed transition
-    speed_reward = np.clip(scaled_speed, 0, 1)
-    if forward_speed < 5:  # Gradual penalty for very low speeds
-        speed_reward = forward_speed / 5
-    
-    # Lane centering reward - corrected version
-    lane_width = self.vehicle.lane.width
-    lane_pos = self.vehicle.lane.local_coordinates(self.vehicle.position)[1]  # Get lateral position
-    lane_centering = -np.abs(lane_pos) / (lane_width / 2)  # Normalize by half lane width
-    
-    # Terminal conditions
-    if abs(self.vehicle.heading) > 0.5 * np.pi or (scaled_speed < -0.1 and self.time > 1):
-        self.vehicle.crashed = True
+    def _rewards(self, action: Action) -> Dict[Text, float]:
+        neighbours = self.road.network.all_side_lanes(self.vehicle.lane_index)
+        lane = (
+            self.vehicle.target_lane_index[2]
+            if isinstance(self.vehicle, ControlledVehicle)
+            else self.vehicle.lane_index[2]
+        )
 
-    return {
-        "collision_reward": float(self.vehicle.crashed),
-        "right_lane_reward": lane / max(len(neighbours) - 1, 1),
-        "high_speed_reward": speed_reward,
-        "on_road_reward": float(self.vehicle.on_road),
-        "heading_penalty": heading_penalty,
-        "lane_centering": lane_centering * 0.1,
-        "stopping_penalty": -0.5 if forward_speed < 2 else 0
-    }
+        # Use forward speed rather than speed, see https://github.com/eleurent/highway-env/issues/268
+
+        forward_speed = self.vehicle.speed * np.cos(self.vehicle.heading)
+
+        scaled_speed = utils.lmap(
+            forward_speed, self.config["reward_speed_range"], [0, 1]
+        )
+
+        reverse_reward = np.abs(self.vehicle.heading)
+
+        reverse_reward = utils.lmap(reverse_reward, [0.25 * np.pi, 0.5 * np.pi], [0, 1])
+
+        # (for convenience) if reversed, the vehicle is considered "crashed"
+
+        if not (-0.5 * np.pi < self.vehicle.heading < 0.5 * np.pi) or forward_speed <= 0:
+
+            self.vehicle.crashed = True
+
+        stopping_penalty = -0.5 if forward_speed < 2 else 0 
+
+        return {
+            "collision_reward": float(self.vehicle.crashed),
+            "right_lane_reward": lane / max(len(neighbours) - 1, 1),
+            "high_speed_reward": np.clip(scaled_speed, 0, 1),
+            "on_road_reward": float(self.vehicle.on_road),
+            "reverse_reward": np.clip(reverse_reward, 0, 1),
+            "stopping_penalty": stopping_penalty
+        }
 
     def _is_terminated(self) -> bool:
         """The episode is over if the ego vehicle crashed."""
