@@ -80,6 +80,8 @@ class HighwayEnvV1(AbstractEnv):
 
     # time elapse
 
+    # time elapse
+
     def elapse(self, delay, reset_steering=False):
 
         self._delay = delay
@@ -90,15 +92,15 @@ class HighwayEnvV1(AbstractEnv):
 
             self.unwrapped.vehicle.action["steering"] = 0
 
-        self._delayed_frequencies = int(
-            self._delay * self.unwrapped.config["simulation_frequency"]
-        )
+        self._delayed_frequencies = int(self._delay * self.unwrapped.config["simulation_frequency"])
 
         for _ in range(self._delayed_frequencies):
 
             self.unwrapped.road.act()
 
             self.unwrapped.road.step(1 / self.unwrapped.config["simulation_frequency"])
+
+        
 
     def _reset(self) -> None:
         self._create_road()
