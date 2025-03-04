@@ -80,8 +80,6 @@ class HighwayEnvV1(AbstractEnv):
 
     # time elapse
 
-    # time elapse
-
     def elapse(self, delay, reset_steering=False):
 
         self._delay = delay
